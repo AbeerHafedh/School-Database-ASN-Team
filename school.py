@@ -1,8 +1,7 @@
 from sqlmodel import SQLModel, Field, create_engine, Session, select
-import json
 from typing import Optional
+from sqlmodel import Session
 from sqlalchemy import text
-
 
 engine = create_engine('sqlite:///school.db')
 
@@ -39,88 +38,84 @@ def createDb():
     SQLModel.metadata.create_all(engine)
 createDb()
 
-def addClass(name):
+def add_data():
     with Session(engine) as session:
-        obj = Class(name=name)
-        session.add(obj)
+        web = Subject(name="Web")
+        math = Subject(name="Math")
+        science = Subject(name="Science")
+        session.add_all([math, science])
         session.commit()
-        session.refresh(obj)
-        print(obj)
-addClass("Class A")
-addClass("Class B")
-addClass("Class C")
+        session.refresh(math)
+        session.refresh(science)
 
-def getAllClasses():
-    with Session(engine) as session:
-        obj = session.exec(select(Class)).all()
-        print(obj)
-getAllClasses()
-
-
-
-def addStudent(name: str, age: int, phone_number: str, class_id: int):
-    with Session(engine) as session:
-        obj = Student(name=name, age=age, phone_number=phone_number, class_id=class_id)
-        session.add(obj)
+        c1 = Class(name="Class A")
+        c2 = Class(name="Class B")
+        c3 = Class(name="Class C")
+        session.add_all([c1, c2, c3])
         session.commit()
-        session.refresh(obj)
-        print(obj)
+        session.refresh(c1)
+        session.refresh(c2)
+        session.refresh(c3)
 
-def getAllStudents():
-    with Session(engine) as session:
-        obj = session.exec(select(Student)).all()
-        print(obj)
-
-addStudent("Abeer Hafedh", 22, "07701111111", 1)
-addStudent("Sarah Mohammed", 22, "07702222222", 2)
-addStudent("Nawal Haider", 22, "07803333333", 3)
-
-getAllStudents()
-
-
-def addTeacher(name: str, salary: float, subject_id: int):
-    with Session(engine) as session:
-        obj = Teacher(name=name, salary=salary, subject_id=subject_id)
-        session.add(obj)
+        st1 = Student(name="Abeer Hafedh", age=22, phone_number="07701111111", class_id=c1.id)
+        st2 = Student(name="Sarah Mohammed", age=22, phone_number="07702222222", class_id=c2.id)
+        st3 = Student(name="Nawal Haider", age=22, phone_number="07803333333", class_id=c3.id)
+        session.add_all([st1, st2, st3])
         session.commit()
-        session.refresh(obj)
-        print(obj)
 
-def addClassTeacher(teacher_id: int, class_id: int):
-    with Session(engine) as session:
-        obj = ClassTeacher(teacher_id=teacher_id, class_id=class_id)
-        session.add(obj)
+        t1 = Teacher(name="Hussien", salary=800, subject_id=math.id)
+        t2 = Teacher(name="Rana", salary=500, subject_id=science.id)
+        t3 = Teacher(name="Ali", salary=600, subject_id=math.id)
+        session.add_all([t1, t2, t3])
         session.commit()
-        print(obj)
+        session.refresh(t1)
+        session.refresh(t2)
+        session.refresh(t3)
 
-def getAllTeachers():
-    with Session(engine) as session:
-        obj = session.exec(select(Teacher)).all()
-        print(obj)
+        ct1 = ClassTeacher(teacher_id=t1.id, class_id=c1.id)
+        ct2 = ClassTeacher(teacher_id=t2.id, class_id=c2.id)
+        ct3 = ClassTeacher(teacher_id=t3.id, class_id=c3.id)
+        session.add_all([ct1, ct2, ct3])
+        session.commit()
 
-def getAllClassTeachers():
-    with Session(engine) as session:
-        obj = session.exec(select(ClassTeacher)).all()
-        print(obj)
+        print("All data added successfully!")
+
+add_data()
+
+def print_all_data(session):
+    students = session.exec(select(Student)).all()
+    classes = session.exec(select(Class)).all()
+    subjects = session.exec(select(Subject)).all()
+    teachers = session.exec(select(Teacher)).all()
+    class_teachers = session.exec(select(ClassTeacher)).all()
+
+    print("\n--- Students ---")
+    for s in students:
+        print(f"{s.id} | {s.name} | Age: {s.age} | Phone: {s.phone_number} | ClassID: {s.class_id}")
+
+    print("\n--- Classes ---")
+    for c in classes:
+        print(f"{c.id} | {c.name}")
+
+    print("\n--- Subjects ---")
+    for sub in subjects:
+        print(f"{sub.id} | {sub.name}")
+
+    print("\n--- Teachers ---")
+    for t in teachers:
+        print(f"{t.id} | {t.name} | Salary: {t.salary} | SubjectID: {t.subject_id}")
+
+    print("\n--- ClassTeachers ---")
+    for ct in class_teachers:
+        print(f"{ct.id} | TeacherID: {ct.teacher_id} | ClassID: {ct.class_id}")
 
 with Session(engine) as session:
-    sub = session.exec(select(Subject).where(Subject.name == "Math")).first()
-    if not sub:
-        sub = Subject(name="Math")
-        session.add(sub)
-        session.commit()
-        session.refresh(sub)
-    subject_id = sub.id
+    print_all_data(session)
 
-
-addTeacher("Ahmed", 300, subject_id)
-addTeacher("Rana", 500, subject_id)
-addTeacher("Ali", 600, subject_id)
-
-addClassTeacher(1, 1)
-addClassTeacher(2, 2)
-addClassTeacher(3, 3)
-
-getAllTeachers()
-getAllClassTeachers()
-
+# with Session(engine) as session:
+#     session.exec(text("DELETE FROM student"))
+#     session.exec(text("DELETE FROM class"))
+#     session.exec(text("DELETE FROM subject"))
+#     session.exec(text("DELETE FROM teacher"))
+#     session.exec(text("DELETE FROM classteacher"))
+#     session.commit()
