@@ -58,6 +58,10 @@ createDb()
 
 def add_data():
     with Session(engine) as session:
+        existing_students = session.exec(select(Student)).all()
+        if existing_students:
+            print("Data already exists, skipping insert.")
+            return
         
         web = Subject(name="Web")
         math = Subject(name="Math")
@@ -77,9 +81,9 @@ def add_data():
         session.add_all([st1, st2, st3])
         session.commit()
 
-        t1 = Teacher(name="Hussien", salary=800, subject_id=math.id)
+        t1 = Teacher(name="Hussien", salary=800, subject_id=web.id)
         t2 = Teacher(name="Rana", salary=500, subject_id=science.id)
-        t3 = Teacher(name="Ali", salary=600, subject_id=web.id)
+        t3 = Teacher(name="Ali", salary=600, subject_id=math.id)
         session.add_all([t1, t2, t3])
         session.commit()
 
