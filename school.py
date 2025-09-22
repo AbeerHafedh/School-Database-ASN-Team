@@ -1,8 +1,7 @@
 from sqlmodel import SQLModel, Field, create_engine, Session, select, Relationship
 from typing import Optional, List
-from fastapi import FastAPI
-from sqlalchemy import text
-
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 engine = create_engine('sqlite:///school.db')
 
@@ -44,57 +43,69 @@ class ClassTeacher(SQLModel, table=True):
 
 def createDb():
     SQLModel.metadata.create_all(engine)
-
 createDb()
 
-def add_data():
-    with Session(engine) as session:
-        if session.exec(select(Student)).first():
-            return
-        web = Subject(name="Web")
-        math = Subject(name="Math")
-        science = Subject(name="Science")
-        session.add_all([web, math, science])
-        session.commit()
-        c1 = Class(name="Class A")
-        c2 = Class(name="Class B")
-        c3 = Class(name="Class C")
-        session.add_all([c1, c2, c3])
-        session.commit()
-        st1 = Student(name="Abeer Hafedh", age=22, phone_number="07701111111", class_id=c1.id)
-        st2 = Student(name="Sarah Mohammed", age=22, phone_number="07702222222", class_id=c2.id)
-        st3 = Student(name="Nawal Haider", age=22, phone_number="07803333333", class_id=c3.id)
-        session.add_all([st1, st2, st3])
-        session.commit()
-        t1 = Teacher(name="Hussien", salary=800, subject_id=web.id)
-        t2 = Teacher(name="Rana", salary=500, subject_id=science.id)
-        t3 = Teacher(name="Ali", salary=600, subject_id=math.id)
-        session.add_all([t1, t2, t3])
-        session.commit()
-        ct1 = ClassTeacher(teacher_id=t1.id, class_id=c1.id)
-        ct2 = ClassTeacher(teacher_id=t2.id, class_id=c2.id)
-        ct3 = ClassTeacher(teacher_id=t3.id, class_id=c3.id)
-        session.add_all([ct1, ct2, ct3])
-        session.commit()
-        grades = [
-            Grade(student_id=st1.id, subject_id=math.id, grade=95),
-            Grade(student_id=st1.id, subject_id=science.id, grade=90),
-            Grade(student_id=st1.id, subject_id=web.id, grade=85),
-            Grade(student_id=st2.id, subject_id=math.id, grade=88),
-            Grade(student_id=st2.id, subject_id=science.id, grade=92),
-            Grade(student_id=st2.id, subject_id=web.id, grade=80),
-            Grade(student_id=st3.id, subject_id=math.id, grade=76),
-            Grade(student_id=st3.id, subject_id=science.id, grade=89),
-            Grade(student_id=st3.id, subject_id=web.id, grade=91),
-        ]
-        session.add_all(grades)
-        session.commit()
+class GradeOut(BaseModel):
+    subject: str
+    grade: int
 
-add_data()
+class StudentOut(BaseModel):
+    id: int
+    name: str
+    age: int
+    phone_number: str
+    class_id: int
+    grades: list[GradeOut]
+
+class StudentIn(BaseModel):
+    name: str
+    age: int
+    phone_number: str
+    class_id: int
+
+class ClassOut(BaseModel):
+    id: int
+    name: str
+
+class ClassIn(BaseModel):
+    name: str
+
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+
+class SubjectIn(BaseModel):
+    name: str
+
+class TeacherOut(BaseModel):
+    id: int
+    name: str
+    salary: float
+    subject_id: int
+
+class TeacherIn(BaseModel):
+    name: str
+    salary: float
+    subject_id: int
+
+class GradeFullOut(BaseModel):
+    id: int
+    student: str
+    subject: str
+    grade: int
+
+class GradeIn(BaseModel):
+    student_id: int
+    subject_id: int
+    grade: int
 
 app = FastAPI()
 
-@app.get("/students")
+@app.get("/")
+def root():
+    return {"message": "Welcome"}
+
+@app.get("/students", response_model=list[StudentOut])
 def get_students():
     with Session(engine) as session:
         students = session.exec(select(Student)).all()
@@ -111,25 +122,25 @@ def get_students():
             })
         return result
 
-@app.get("/classes")
+@app.get("/classes", response_model=list[ClassOut])
 def get_classes():
     with Session(engine) as session:
         classes = session.exec(select(Class)).all()
         return [{"id": c.id, "name": c.name} for c in classes]
 
-@app.get("/subjects")
+@app.get("/subjects", response_model=list[SubjectOut])
 def get_subjects():
     with Session(engine) as session:
         subjects = session.exec(select(Subject)).all()
         return [{"id": s.id, "name": s.name} for s in subjects]
 
-@app.get("/teachers")
+@app.get("/teachers", response_model=list[TeacherOut])
 def get_teachers():
     with Session(engine) as session:
         teachers = session.exec(select(Teacher)).all()
         return [{"id": t.id, "name": t.name, "salary": t.salary, "subject_id": t.subject_id} for t in teachers]
 
-@app.get("/grades")
+@app.get("/grades", response_model=list[GradeFullOut])
 def get_grades():
     with Session(engine) as session:
         grades = session.exec(select(Grade)).all()
@@ -142,17 +153,71 @@ def get_grades():
                 "grade": g.grade
             })
         return result
-@app.get("/")
-def root():
-    return {"message": "Welcome"}
+
+@app.post("/students", response_model=StudentOut)
+def create_student(student: StudentIn):
+    with Session(engine) as session:
+        db_student = Student(name=student.name, age=student.age, phone_number=student.phone_number, class_id=student.class_id)
+        session.add(db_student)
+        session.commit()
+        session.refresh(db_student)
+        return {
+            "id": db_student.id,
+            "name": db_student.name,
+            "age": db_student.age,
+            "phone_number": db_student.phone_number,
+            "class_id": db_student.class_id,
+            "grades": []
+        }
+
+@app.post("/classes", response_model=ClassOut)
+def create_class(class_: ClassIn):
+    with Session(engine) as session:
+        db_class = Class(name=class_.name)
+        session.add(db_class)
+        session.commit()
+        session.refresh(db_class)
+        return {"id": db_class.id, "name": db_class.name}
+
+@app.post("/subjects", response_model=SubjectOut)
+def create_subject(subject: SubjectIn):
+    with Session(engine) as session:
+        db_subject = Subject(name=subject.name)
+        session.add(db_subject)
+        session.commit()
+        session.refresh(db_subject)
+        return {"id": db_subject.id, "name": db_subject.name}
+
+@app.post("/teachers", response_model=TeacherOut)
+def create_teacher(teacher: TeacherIn):
+    with Session(engine) as session:
+        db_teacher = Teacher(name=teacher.name, salary=teacher.salary, subject_id=teacher.subject_id)
+        session.add(db_teacher)
+        session.commit()
+        session.refresh(db_teacher)
+        return {"id": db_teacher.id, "name": db_teacher.name, "salary": db_teacher.salary, "subject_id": db_teacher.subject_id}
+
+@app.post("/grades", response_model=GradeFullOut)
+def create_grade(grade: GradeIn):
+    with Session(engine) as session:
+        db_grade = Grade(student_id=grade.student_id, subject_id=grade.subject_id, grade=grade.grade)
+        session.add(db_grade)
+        session.commit()
+        session.refresh(db_grade)
+        return {
+            "id": db_grade.id,
+            "student": db_grade.student.name if db_grade.student else "Unknown",
+            "subject": db_grade.subject.name if db_grade.subject else "Unknown",
+            "grade": db_grade.grade
+        }
 
 
-
-# with Session(engine) as session:
-#     session.exec(text("DELETE FROM student"))
-#     session.exec(text("DELETE FROM class"))
-#     session.exec(text("DELETE FROM subject"))
-#     session.exec(text("DELETE FROM teacher"))
-#     session.exec(text("DELETE FROM classteacher"))
-#     session.exec(text("DELETE FROM Grade"))
-#     session.commit()
+@app.delete("/students/{student_id}")
+def delete_student(student_id: int):
+    with Session(engine) as session:
+        student = session.get(Student, student_id)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        session.delete(student)
+        session.commit()
+        return {"message": f"Student with id {student_id} deleted successfully"}
